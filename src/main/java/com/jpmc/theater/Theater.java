@@ -1,33 +1,23 @@
 package com.jpmc.theater;
 
+import java.io.StringWriter;
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-public class Theater {
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.JsonObjectBuilder;
+import jakarta.json.Json;
+import jakarta.json.JsonWriterFactory;
+import jakarta.json.JsonWriter;
 
-    LocalDateProvider provider;
+public class Theater {
     private List<Showing> schedule;
 
-    public Theater(LocalDateProvider provider) {
-        this.provider = provider;
-
-        Movie spiderMan = new Movie("Spider-Man: No Way Home", Duration.ofMinutes(90), 12.5, 1);
-        Movie turningRed = new Movie("Turning Red", Duration.ofMinutes(85), 11, 0);
-        Movie theBatMan = new Movie("The Batman", Duration.ofMinutes(95), 9, 0);
-        schedule = List.of(
-            new Showing(turningRed, 1, LocalDateTime.of(provider.currentDate(), LocalTime.of(9, 0))),
-            new Showing(spiderMan, 2, LocalDateTime.of(provider.currentDate(), LocalTime.of(11, 0))),
-            new Showing(theBatMan, 3, LocalDateTime.of(provider.currentDate(), LocalTime.of(12, 50))),
-            new Showing(turningRed, 4, LocalDateTime.of(provider.currentDate(), LocalTime.of(14, 30))),
-            new Showing(spiderMan, 5, LocalDateTime.of(provider.currentDate(), LocalTime.of(16, 10))),
-            new Showing(theBatMan, 6, LocalDateTime.of(provider.currentDate(), LocalTime.of(17, 50))),
-            new Showing(turningRed, 7, LocalDateTime.of(provider.currentDate(), LocalTime.of(19, 30))),
-            new Showing(spiderMan, 8, LocalDateTime.of(provider.currentDate(), LocalTime.of(21, 10))),
-            new Showing(theBatMan, 9, LocalDateTime.of(provider.currentDate(), LocalTime.of(23, 0)))
-        );
+    public Theater(List<Showing> schedule) {
+        this.schedule = schedule;
     }
 
     public Reservation reserve(Customer customer, int sequence, int howManyTickets) {
@@ -35,22 +25,49 @@ public class Theater {
         try {
             showing = schedule.get(sequence - 1);
         } catch (RuntimeException ex) {
-            ex.printStackTrace();
-            throw new IllegalStateException("not able to find any showing for given sequence " + sequence);
+            String errorMessage = "Not able to find any showing for given sequence " + sequence;
+            System.out.println(errorMessage);
+            throw new IllegalStateException(errorMessage);
         }
-        return new Reservation(customer, showing, howManyTickets);
+        Reservation reservation = new Reservation(customer, showing, howManyTickets);
+        System.out.println("You have to pay " + reservation.totalFee());
+        return reservation;
     }
 
     public void printSchedule() {
-        System.out.println(provider.currentDate());
+        System.out.println(LocalDateProvider.singleton().currentDate());
         System.out.println("===================================================");
         schedule.forEach(s ->
                 System.out.println(s.getSequenceOfTheDay() + ": " + s.getStartTime() + " " + s.getMovie().getTitle() + " " + humanReadableFormat(s.getMovie().getRunningTime()) + " $" + s.getMovieFee())
         );
         System.out.println("===================================================");
+
+        printJson();
     }
 
-    public String humanReadableFormat(Duration duration) {
+    private void printJson() {
+        JsonObjectBuilder obj = Json.createObjectBuilder();
+        schedule.forEach(s ->
+                obj.add(Integer.toString(s.getSequenceOfTheDay()), Json.createObjectBuilder()
+                        .add("startTime", s.getStartTime().toString())
+                        .add("title", s.getMovie().getTitle())
+                        .add("runTime", humanReadableFormat(s.getMovie().getRunningTime()))
+                        .add("fee", "$" + s.getMovieFee()).build())
+        );
+
+        Map<String, String> config = new HashMap<>();
+        config.put(JsonGenerator.PRETTY_PRINTING, "");
+        JsonWriterFactory writerFactory = Json.createWriterFactory(config);
+
+        StringWriter strWriter = new StringWriter();
+        try (JsonWriter jsonWriter = writerFactory.createWriter(strWriter)) {
+            jsonWriter.writeObject(obj.build());
+        }
+
+        System.out.println(strWriter);
+    }
+
+    private String humanReadableFormat(Duration duration) {
         long hour = duration.toHours();
         long remainingMin = duration.toMinutes() - TimeUnit.HOURS.toMinutes(duration.toHours());
 
@@ -67,8 +84,5 @@ public class Theater {
         }
     }
 
-    public static void main(String[] args) {
-        Theater theater = new Theater(LocalDateProvider.singleton());
-        theater.printSchedule();
-    }
+    public static void main(String[] args) {}
 }
