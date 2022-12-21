@@ -46,6 +46,6 @@ public class Movie {
 
     @Override
     public int hashCode() {
-        return Objects.hash(title, runningTime, specialMovie);
+        return Objects.hash(title, runningTime, ticketPrice, specialMovie);
     }
 }
